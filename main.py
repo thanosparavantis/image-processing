@@ -1,37 +1,50 @@
-import os
-from PIL import Image, ImageCms
+import cv2
+import numpy as np
+from sklearn.cluster import MiniBatchKMeans
 
+image = cv2.imread('image.jpg')
+height, width, depth = image.shape
 
-def rgb2lab(img):
-    srgb_profile = ImageCms.createProfile('sRGB')
-    lab_profile = ImageCms.createProfile('LAB')
+# 1ο ερώτημα εργασίας
+# Αναπαράσταση Εικόνας στον Χρωματικό Χώρο Lab
 
-    transform = ImageCms.buildTransformFromOpenProfiles(
-        srgb_profile,
-        lab_profile,
-        'RGB',
-        'LAB'
-    )
+print('Converting RGB to LAB image...')
+lab_image = cv2.cvtColor(image, cv2.COLOR_RGB2LAB)
 
-    lab = ImageCms.applyTransform(
-        img,
-        transform
-    )
+# 2ο ερώτημα εργασίας
+# Διακριτοποίηση του Χρωματικού Χώρου Lab με βάση ένα σύνολο συναφών εικόνων εκπαίδευσης
 
-    return lab.split()
+# https://www.pyimagesearch.com/2014/07/07/color-quantization-opencv-using-k-means-clustering/
 
+clusters = 8
+iterations = 100
+batch_size = 100
 
-if __name__ == '__main__':
-    if not os.path.isdir('temp'):
-        os.mkdir('temp')
+print('K-Means Clustering')
+print(f'Number of clusters: {clusters}')
+print(f'Iterations: {iterations}')
+print(f'Batch Size: {batch_size}')
 
-    img = Image.open('image.jpg')
-    L, a, b = rgb2lab(img)
+reshaped_image = lab_image.reshape(height * width, depth)
 
-    L.save('temp/L.jpg')
-    a.save('temp/a.jpg')
-    b.save('temp/b.jpg')
+k_means = MiniBatchKMeans(
+    n_clusters=clusters,
+    max_iter=iterations,
+    batch_size=batch_size)
 
-    L.show()
-    a.show()
-    b.show()
+print('Computing centroids...')
+pixels_labels = k_means.fit_predict(reshaped_image)
+
+centroids = k_means.cluster_centers_.astype("uint8")
+
+print('Centroids:')
+print(centroids)
+
+print('Constructing quantized image...')
+quantized_image = centroids[pixels_labels]
+quantized_image = quantized_image.reshape((height, width, depth))
+quantized_image = cv2.cvtColor(quantized_image, cv2.COLOR_LAB2BGR)
+
+cv2.imshow("Image", image)
+cv2.imshow("Quantized Image", quantized_image)
+cv2.waitKey(0)
