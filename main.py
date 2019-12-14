@@ -1,9 +1,12 @@
 import os
 import cv2
+import skimage
+from skimage.filters import gabor
 from skimage.segmentation import slic, mark_boundaries
 from sklearn.cluster import MiniBatchKMeans
 from skimage import io, img_as_float, img_as_uint, img_as_ubyte
 import numpy as np
+
 if not os.path.isdir('temp'):
     os.mkdir('temp')
 
@@ -22,38 +25,41 @@ lab_image = cv2.cvtColor(image, cv2.COLOR_RGB2LAB)
 # https://scikit-learn.org/stable/modules/clustering.html#mini-batch-k-means
 # https://www.pyimagesearch.com/2014/07/07/color-quantization-opencv-using-k-means-clustering/
 
-clusters = 8
+clusters = (8, 16, 32)
 iterations = 100
 batch_size = 100
 
-print('K-Means Clustering')
-print(f'Number of clusters: {clusters}')
-print(f'Iterations: {iterations}')
-print(f'Batch Size: {batch_size}')
+print('Color Quantization')
 
-reshaped_image = lab_image.reshape(height * width, depth)
+for cluster_count in clusters:
+    print('Applying K-Means Clustering...')
+    print(f'Number of clusters: {cluster_count}')
+    print(f'Iterations: {iterations}')
+    print(f'Batch Size: {batch_size}')
 
-k_means = MiniBatchKMeans(
-    n_clusters=clusters,
-    max_iter=iterations,
-    batch_size=batch_size)
+    reshaped_image = lab_image.reshape(height * width, depth)
 
-print('Computing centroids...')
-pixels_labels = k_means.fit_predict(reshaped_image)
+    k_means = MiniBatchKMeans(
+        n_clusters=cluster_count,
+        max_iter=iterations,
+        batch_size=batch_size)
 
-centroids = k_means.cluster_centers_.astype('uint8')
+    print('Computing centroids...')
+    pixels_labels = k_means.fit_predict(reshaped_image)
 
-print('Centroids:')
-print(centroids)
+    centroids = k_means.cluster_centers_.astype('uint8')
 
-print('Constructing quantized image...')
-quantized_image = centroids[pixels_labels]
-quantized_image = quantized_image.reshape((height, width, depth))
-quantized_image = cv2.cvtColor(quantized_image, cv2.COLOR_LAB2BGR)
+    print('Centroids:')
+    print(centroids)
 
-cv2.imwrite(f'temp/quantized_image_k={clusters}.jpg', quantized_image)
-cv2.imshow('Image', image)
-cv2.imshow(f'Quantized Image (k={clusters})', quantized_image)
+    print('Constructing quantized image...')
+    quantized_image = centroids[pixels_labels]
+    quantized_image = quantized_image.reshape((height, width, depth))
+    quantized_image = cv2.cvtColor(quantized_image, cv2.COLOR_LAB2BGR)
+
+    path = f'temp/quantized_image_k={cluster_count}.jpg'
+    print(f'Saving image: {path}')
+    cv2.imwrite(path, quantized_image)
 
 # 3ο ερώτημα
 # Κατάτμηση Εικόνας σε Superpixels σύμφωνα με τον αλγόριθμο SLIC
@@ -61,20 +67,46 @@ cv2.imshow(f'Quantized Image (k={clusters})', quantized_image)
 # https://scikit-image.org/docs/dev/api/skimage.segmentation.html#skimage.segmentation.slic
 # https://www.pyimagesearch.com/2014/07/28/a-slic-superpixel-tutorial-using-python/
 
-segments = 100
+segments = (100, 200, 300)
 sigma = 5
 
+print('Extracting superpixels')
+
 float_image = img_as_float(image)
+superpixel_groups = []
 
-superpixels = slic(
-    float_image,
-    n_segments=segments,
-    sigma=sigma
-)
+for segment_count in segments:
+    print(f'Applying SLIC algorithm')
+    print(f'Segments: {segment_count}')
+    print(f'Sigma: {sigma}')
 
-slic_image = mark_boundaries(float_image, superpixels)
-slic_image = img_as_ubyte(slic_image)
+    superpixels = slic(
+        float_image,
+        n_segments=segment_count,
+        sigma=sigma
+    )
 
-io.imsave(f'temp/slic_image_segments={segments}_sigma={sigma}.jpg', slic_image)
-cv2.imshow(f'SLIC Image (segments={segments}, sigma={sigma})', slic_image)
-cv2.waitKey(0)
+    superpixel_groups.append(superpixels)
+
+    print('Marking boundaries...')
+    slic_image = mark_boundaries(float_image, superpixels)
+    slic_image = img_as_ubyte(slic_image)
+
+    path = f'temp/slic_image_segments={segment_count}_sigma={sigma}.jpg'
+    print(f'Saving image: {path}')
+    io.imsave(path, slic_image, quality=100)
+
+# 4ο ερώτημα
+# Εξαγωγή Χαρακτηριστικών Υφής (SURF Features & Gabor Features) ανά Super Pixel
+
+# https://www.pyimagesearch.com/2014/12/29/accessing-individual-superpixel-segmentations-python/
+
+superpixels = superpixel_groups[0]
+
+for superpixel in np.unique(superpixels):
+    mask = np.zeros(image.shape[:2], dtype="uint8")
+    mask[superpixels == superpixel] = 255
+
+    # cv2.imshow("Mask", mask)
+    # cv2.imshow("Applied", cv2.bitwise_and(image, image, mask=mask))
+    # cv2.waitKey()
