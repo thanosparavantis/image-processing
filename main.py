@@ -1,11 +1,12 @@
 import os
+
 import cv2
+import numpy as np
 import skimage
+from skimage import img_as_float, img_as_ubyte
 from skimage.filters import gabor
 from skimage.segmentation import slic, mark_boundaries
 from sklearn.cluster import MiniBatchKMeans
-from skimage import io, img_as_float, img_as_uint, img_as_ubyte
-import numpy as np
 
 if not os.path.isdir('temp'):
     os.mkdir('temp')
@@ -55,7 +56,7 @@ for cluster_count in clusters:
     print('Constructing quantized image...')
     quantized_image = centroids[pixels_labels]
     quantized_image = quantized_image.reshape((height, width, depth))
-    quantized_image = cv2.cvtColor(quantized_image, cv2.COLOR_LAB2BGR)
+    quantized_image = cv2.cvtColor(quantized_image, cv2.COLOR_LAB2RGB)
 
     path = f'temp/quantized_image_k={cluster_count}.jpg'
     print(f'Saving image: {path}')
@@ -94,7 +95,8 @@ for segment_count in segments:
 
     path = f'temp/slic_image_segments={segment_count}_sigma={sigma}.jpg'
     print(f'Saving image: {path}')
-    io.imsave(path, slic_image, quality=100)
+
+    cv2.imwrite(path, slic_image)
 
 # 4ο ερώτημα
 # Εξαγωγή Χαρακτηριστικών Υφής (SURF Features & Gabor Features) ανά Super Pixel
@@ -103,10 +105,21 @@ for segment_count in segments:
 
 superpixels = superpixel_groups[0]
 
+# kernel = cv2.getGaborKernel(ksize=,
+#                             sigma=,
+#                             theta=,
+#                             lambd=,
+#                             gamma=,
+#                             psi=,
+#                             ktype=cv2.CV_32F)
+
 for superpixel in np.unique(superpixels):
     mask = np.zeros(image.shape[:2], dtype="uint8")
     mask[superpixels == superpixel] = 255
 
-    # cv2.imshow("Mask", mask)
-    # cv2.imshow("Applied", cv2.bitwise_and(image, image, mask=mask))
-    # cv2.waitKey()
+    image_part = cv2.bitwise_and(image, image, mask=mask)
+    real_response, imaginary_response = gabor(image_part[:, :, 0], frequency=0.6)
+
+    cv2.imshow('Real response', real_response)
+    cv2.imshow('Imaginary response', imaginary_response)
+    cv2.waitKey()
