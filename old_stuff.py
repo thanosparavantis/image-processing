@@ -1,5 +1,5 @@
+import project_functions as pfuncs
 import os
-
 import cv2
 import numpy as np
 import skimage
@@ -46,6 +46,7 @@ for cluster_count in clusters:
         batch_size=batch_size)
 
     print('Computing centroids...')
+
     pixels_labels = k_means.fit_predict(reshaped_image)
 
     centroids = k_means.cluster_centers_.astype('uint8')
