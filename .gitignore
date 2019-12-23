@@ -6,3 +6,7 @@ temp/
 venv/
 
 *.pdf
+
+__pycache__/
+
+*.docx#
