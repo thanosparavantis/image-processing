@@ -1,4 +1,5 @@
 import os
+import shutil
 
 import cv2
 import matplotlib.pyplot as plt
@@ -7,12 +8,18 @@ from skimage import img_as_float, img_as_ubyte
 from skimage.segmentation import slic, mark_boundaries
 from sklearn.cluster import MiniBatchKMeans
 
+# https://scikit-learn.org/stable/modules/clustering.html#mini-batch-k-means
+# https://www.pyimagesearch.com/2014/07/07/color-quantization-opencv-using-k-means-clustering/
 # https://www.pyimagesearch.com/2015/07/16/where-did-sift-and-surf-go-in-opencv-3/
 # https://www.pyimagesearch.com/2018/08/15/how-to-install-opencv-4-on-ubuntu/
+# https://www.pyimagesearch.com/2014/12/29/accessing-individual-superpixel-segmentations-python/
+# https://scikit-image.org/docs/dev/api/skimage.segmentation.html#skimage.segmentation.slic
+# https://www.pyimagesearch.com/2014/07/28/a-slic-superpixel-tutorial-using-python/
 # https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_feature2d/py_surf_intro/py_surf_intro.html
+# https://cvtuts.wordpress.com/2014/04/27/gabor-filters-a-practical-overview/
 
-if not os.path.isdir('./temp'):
-    os.mkdir('./temp')
+shutil.rmtree('./temp')
+os.mkdir('./temp')
 
 
 def get_lab_dataset(path):
@@ -88,15 +95,17 @@ def quantize_images(lab_dataset, colors=32):
     return quantized_dataset
 
 
-def slic_images(quantized_dataset, segments=100):
+def slic_images(quantized_dataset):
     slic_dataset = []
     slic_groups = []
 
     for idx, image in enumerate(quantized_dataset):
+        image = cv2.cvtColor(image, cv2.COLOR_LAB2BGR)
+
         print(f'Running SLIC on image #{idx + 1}')
 
         # Find the boundaries for each superpixel in the image
-        groups = slic(image=img_as_float(image), n_segments=segments)
+        groups = slic(image=img_as_float(image), n_segments=50)
 
         # Loop through all superpixels and extract them using a mask
         superpixels = []
@@ -123,7 +132,6 @@ def slic_images(quantized_dataset, segments=100):
         os.mkdir('./temp/slic')
 
     for idx, image in enumerate(slic_dataset):
-        image = cv2.cvtColor(image, cv2.COLOR_LAB2BGR)
         cv2.imwrite(f'./temp/slic/{idx + 1}.jpg', image)
 
     # Save every superpixel individually grouped by image
@@ -135,37 +143,91 @@ def slic_images(quantized_dataset, segments=100):
             os.mkdir(f'./temp/superpixels/{idx1 + 1}')
 
         for idx2, superpixel in enumerate(group):
-            superpixel = cv2.cvtColor(superpixel, cv2.COLOR_LAB2BGR)
             cv2.imwrite(f'./temp/superpixels/{idx1 + 1}/{idx2 + 1}.jpg', superpixel)
 
     return slic_dataset, slic_groups
 
 
 def compute_surf(slic_groups):
+    surf_groups = []
     surf = cv2.xfeatures2d.SURF_create()
+
+    for idx, group in enumerate(slic_groups):
+        print(f'Computing SURF features for image #{idx + 1}')
+        surf_images = []
+
+        for superpixel in group:
+            keypoints, descriptors = surf.detectAndCompute(superpixel, None)
+            image = cv2.drawKeypoints(superpixel, keypoints, None, (255, 0, 0), 4)
+            surf_images.append(image)
+
+        surf_groups.append(surf_images)
 
     if not os.path.isdir('./temp/surf'):
         os.mkdir('./temp/surf')
 
-    for idx1, superpixels in enumerate(slic_groups):
-        print(f'Computing SURF features for image #{idx1 + 1}')
-
+    for idx1, group in enumerate(surf_groups):
         if not os.path.isdir(f'./temp/surf/{idx1 + 1}'):
             os.mkdir(f'./temp/surf/{idx1 + 1}')
 
-        for idx2, superpixel in enumerate(superpixels):
-            keypoints, descriptors = surf.detectAndCompute(superpixel, None)
-            image = cv2.drawKeypoints(superpixel, keypoints, None, (255, 0, 0), 4)
-            image = cv2.cvtColor(image, cv2.COLOR_LAB2BGR)
-
+        for idx2, image in enumerate(group):
             cv2.imwrite(f'./temp/surf/{idx1 + 1}/{idx2 + 1}.jpg', image)
 
 
+def build_gabor_kernels():
+    filters = []
+
+    ksize = (31, 31)
+    sigma = 4.0
+    lambd = 10.0
+    gamma = 0.5
+    psi = 0.0
+
+    for theta in np.arange(0, np.pi, np.pi / 16):
+        kernel = cv2.getGaborKernel(ksize, sigma, theta, lambd, gamma, psi, cv2.CV_32F)
+        kernel /= 1.5 * kernel.sum()
+        print(f'New gabor filter ksize={ksize}, sigma={sigma}, theta={theta}, lambd={lambd}, gamma={gamma}, psi={psi}')
+        filters.append(kernel)
+
+    return filters
+
+
+def apply_gabor_kernels(kernels, image):
+    response = np.zeros_like(image)
+
+    for kernel in kernels:
+        filtered = cv2.filter2D(image, cv2.CV_8UC3, kernel)
+        np.maximum(response, filtered, response)
+
+    return response
+
+
 def compute_gabor(slic_groups):
-    pass
+    gabor_groups = []
+    kernels = build_gabor_kernels()
+
+    for idx1, superpixels in enumerate(slic_groups):
+        print(f'Computing Gabor features for image #{idx1 + 1}')
+        gabor_images = []
+
+        for idx2, superpixel in enumerate(superpixels):
+            image = apply_gabor_kernels(kernels, superpixel)
+            gabor_images.append(image)
+
+        gabor_groups.append(gabor_images)
+
+    if not os.path.isdir('./temp/gabor'):
+        os.mkdir('./temp/gabor')
+
+    for idx1, group in enumerate(gabor_groups):
+        if not os.path.isdir(f'./temp/gabor/{idx1 + 1}'):
+            os.mkdir(f'./temp/gabor/{idx1 + 1}')
+
+        for idx2, image in enumerate(group):
+            cv2.imwrite(f'./temp/gabor/{idx1 + 1}/{idx2 + 1}.jpg', image)
 
 
-def plot_images(path, dataset, rows=5, cols=2):
+def plot_images(path, dataset, rows, cols):
     rgb_dataset = [cv2.cvtColor(image, cv2.COLOR_LAB2RGB) for image in dataset]
 
     fig = plt.figure(figsize=(100, 100))
