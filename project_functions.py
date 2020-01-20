@@ -7,18 +7,8 @@ import cv2
 import numpy as np
 from skimage import img_as_float, img_as_ubyte
 from skimage.segmentation import slic, mark_boundaries
-from sklearn import svm, metrics
+from sklearn import svm, metrics, preprocessing
 from sklearn.cluster import MiniBatchKMeans
-
-# https://scikit-learn.org/stable/modules/clustering.html#mini-batch-k-means
-# https://www.pyimagesearch.com/2014/07/07/color-quantization-opencv-using-k-means-clustering/
-# https://www.pyimagesearch.com/2015/07/16/where-did-sift-and-surf-go-in-opencv-3/
-# https://www.pyimagesearch.com/2018/08/15/how-to-install-opencv-4-on-ubuntu/
-# https://www.pyimagesearch.com/2014/12/29/accessing-individual-superpixel-segmentations-python/
-# https://scikit-image.org/docs/dev/api/skimage.segmentation.html#skimage.segmentation.slic
-# https://www.pyimagesearch.com/2014/07/28/a-slic-superpixel-tutorial-using-python/
-# https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_feature2d/py_surf_intro/py_surf_intro.html
-# https://cvtuts.wordpress.com/2014/04/27/gabor-filters-a-practical-overview/
 from sklearn.model_selection import train_test_split
 
 shutil.rmtree('./temp')
@@ -38,15 +28,15 @@ def get_lab_dataset(path):
     dataset = [cv2.imread(path) for path in paths]
     dataset = [cv2.cvtColor(image, cv2.COLOR_BGR2LAB) for image in dataset]
 
-    # # For each image store L, a, b channels
-    # if not os.path.isdir('./temp/lab'):
-    #     os.mkdir('./temp/lab')
-    #
-    # for idx, image in enumerate(dataset):
-    #     L, a, b = cv2.split(image)
-    #     cv2.imwrite(f'./temp/lab/{idx + 1}_L.jpg', L)
-    #     cv2.imwrite(f'./temp/lab/{idx + 1}_a.jpg', a)
-    #     cv2.imwrite(f'./temp/lab/{idx + 1}_b.jpg', b)
+    # For each image store L, a, b channels
+    if not os.path.isdir('./temp/lab'):
+        os.mkdir('./temp/lab')
+
+    for idx, image in enumerate(dataset):
+        L, a, b = cv2.split(image)
+        cv2.imwrite(f'./temp/lab/{idx + 1}_L.jpg', L)
+        cv2.imwrite(f'./temp/lab/{idx + 1}_a.jpg', a)
+        cv2.imwrite(f'./temp/lab/{idx + 1}_b.jpg', b)
 
     return dataset
 
@@ -87,12 +77,13 @@ def quantize_images(lab_dataset):
 
         quantized_dataset.append(quantized)
 
-    # # Save quantized images
-    # if not os.path.isdir('./temp/quantized'):
-    #     os.mkdir('./temp/quantized')
-    #
-    # for idx, image in enumerate(quantized_dataset):
-    #     cv2.imwrite(f'./temp/quantized/{idx + 1}.jpg', image)
+    # Save quantized images
+    if not os.path.isdir('./temp/quantized'):
+        os.mkdir('./temp/quantized')
+
+    for idx, image in enumerate(quantized_dataset):
+        image = cv2.cvtColor(image, cv2.COLOR_LAB2BGR)
+        cv2.imwrite(f'./temp/quantized/{idx + 1}.jpg', image)
 
     return quantized_dataset, centroids
 
@@ -132,23 +123,25 @@ def slic_images(quantized_dataset):
 
         slic_dataset.append(marked_image)
 
-    # # Save images with superpixel boundaries
-    # if not os.path.isdir('./temp/slic'):
-    #     os.mkdir('./temp/slic')
-    #
-    # for idx, image in enumerate(slic_dataset):
-    #     cv2.imwrite(f'./temp/slic/{idx + 1}.jpg', image)
-    #
-    # # Save every superpixel individually grouped by image
-    # if not os.path.isdir('./temp/superpixels'):
-    #     os.mkdir('./temp/superpixels')
-    #
-    # for idx1, group in enumerate(slic_groups):
-    #     if not os.path.isdir(f'./temp/superpixels/{idx1 + 1}'):
-    #         os.mkdir(f'./temp/superpixels/{idx1 + 1}')
-    #
-    #     for idx2, superpixel in enumerate(group):
-    #         cv2.imwrite(f'./temp/superpixels/{idx1 + 1}/{idx2 + 1}.jpg', superpixel)
+    # Save images with superpixel boundaries
+    if not os.path.isdir('./temp/slic'):
+        os.mkdir('./temp/slic')
+
+    for idx, image in enumerate(slic_dataset):
+        image = cv2.cvtColor(image, cv2.COLOR_LAB2BGR)
+        cv2.imwrite(f'./temp/slic/{idx + 1}.jpg', image)
+
+    # Save every superpixel individually grouped by image
+    if not os.path.isdir('./temp/superpixels'):
+        os.mkdir('./temp/superpixels')
+
+    for idx1, group in enumerate(slic_groups):
+        if not os.path.isdir(f'./temp/superpixels/{idx1 + 1}'):
+            os.mkdir(f'./temp/superpixels/{idx1 + 1}')
+
+        for idx2, superpixel in enumerate(group):
+            superpixel = cv2.cvtColor(superpixel, cv2.COLOR_LAB2BGR)
+            cv2.imwrite(f'./temp/superpixels/{idx1 + 1}/{idx2 + 1}.jpg', superpixel)
 
     return slic_groups, slic_centroids
 
@@ -175,15 +168,16 @@ def compute_surf(slic_groups):
         surf_descriptors.append(image_descriptors)
         surf_groups.append(surf_images)
 
-    # if not os.path.isdir('./temp/surf'):
-    #     os.mkdir('./temp/surf')
-    #
-    # for idx1, group in enumerate(surf_groups):
-    #     if not os.path.isdir(f'./temp/surf/{idx1 + 1}'):
-    #         os.mkdir(f'./temp/surf/{idx1 + 1}')
-    #
-    #     for idx2, image in enumerate(group):
-    #         cv2.imwrite(f'./temp/surf/{idx1 + 1}/{idx2 + 1}.jpg', image)
+    if not os.path.isdir('./temp/surf'):
+        os.mkdir('./temp/surf')
+
+    for idx1, group in enumerate(surf_groups):
+        if not os.path.isdir(f'./temp/surf/{idx1 + 1}'):
+            os.mkdir(f'./temp/surf/{idx1 + 1}')
+
+        for idx2, image in enumerate(group):
+            image = cv2.cvtColor(image, cv2.COLOR_LAB2BGR)
+            cv2.imwrite(f'./temp/surf/{idx1 + 1}/{idx2 + 1}.jpg', image)
 
     return surf_descriptors
 
@@ -230,15 +224,16 @@ def compute_gabor(slic_groups):
 
         gabor_groups.append(gabor_images)
 
-    # if not os.path.isdir('./temp/gabor'):
-    #     os.mkdir('./temp/gabor')
-    #
-    # for idx1, group in enumerate(gabor_groups):
-    #     if not os.path.isdir(f'./temp/gabor/{idx1 + 1}'):
-    #         os.mkdir(f'./temp/gabor/{idx1 + 1}')
-    #
-    #     for idx2, image in enumerate(group):
-    #         cv2.imwrite(f'./temp/gabor/{idx1 + 1}/{idx2 + 1}.jpg', image)
+    if not os.path.isdir('./temp/gabor'):
+        os.mkdir('./temp/gabor')
+
+    for idx1, group in enumerate(gabor_groups):
+        if not os.path.isdir(f'./temp/gabor/{idx1 + 1}'):
+            os.mkdir(f'./temp/gabor/{idx1 + 1}')
+
+        for idx2, image in enumerate(group):
+            image = cv2.cvtColor(image, cv2.COLOR_LAB2BGR)
+            cv2.imwrite(f'./temp/gabor/{idx1 + 1}/{idx2 + 1}.jpg', image)
 
     return gabor_groups
 
@@ -254,73 +249,72 @@ def make_dataset(slic_groups, slic_centroids, surf_descriptors, gabor_groups, ce
         print(f'Color (a:{color[0]}, b:{color[1]}) with index {idx}')
 
     # Store the AB colors for all pixels in superpixels
-    ab_superpixels = []
+    images_with_ab = []
 
     for group in slic_groups:
+        image = []
         for superpixel in group:
-            ab_superpixels.append(superpixel[:, :, 1:])
+            image.append(superpixel[:, :, 1:])
+        images_with_ab.append(image)
 
     # Store the centroid AB color for each superpixel
-    all_centroids = [centroid for group in slic_centroids for centroid in group]
+    images_with_centroid_ab = []
 
-    superpixel_colors = []
+    for group in slic_centroids:
+        image = []
+        for centroid in group:
+            c_a = centroid[0]
+            c_b = centroid[1]
 
-    for idx, superpixel in enumerate(ab_superpixels):
-        c_a = all_centroids[idx][0]
-        c_b = all_centroids[idx][1]
+            min_dist = sys.maxsize
+            color = ab_centroids[0]
 
-        min_dist = sys.maxsize
-        color = ab_centroids[0]
+            for quantized_color in ab_centroids:
+                a = quantized_color[0]
+                b = quantized_color[1]
+                distance = math.sqrt(((c_a - a) ** 2) + ((c_b - b) ** 2))
 
-        for quantized_color in ab_centroids:
-            a = quantized_color[0]
-            b = quantized_color[1]
-            distance = math.sqrt(((c_a - a) ** 2) + ((c_b - b) ** 2))
+                if distance < min_dist:
+                    min_dist = distance
+                    color = quantized_color
 
-            if distance < min_dist:
-                min_dist = distance
-                color = quantized_color
-
-        superpixel_colors.append(color)
-        print(f'Superpixel #{idx} has color (a:{color[0]}, b:{color[1]})')
+            image.append(color)
+        images_with_centroid_ab.append(image)
 
     # Store the SURF descriptors average for each superpixel
-    all_descriptors = [descriptors for group in surf_descriptors for descriptors in group]
-    avg_descriptors = []
+    images_with_surf_avg = []
 
-    for idx, descriptors in enumerate(all_descriptors):
-        average = np.mean(descriptors)
-        avg_descriptors.append(average)
-        print(f'SURF for Superpixel #{idx} has average:{average}')
+    for group in surf_descriptors:
+        image = []
+        for descriptor in group:
+            average = np.mean(descriptor) if descriptor is not None else 0
+            image.append(average)
+        images_with_surf_avg.append(image)
 
     # Store the Gabor filter responses for each superpixel
-    all_gabor = [superpixel for group in gabor_groups for superpixel in group]
-    avg_gabor = []
+    images_with_gabor_avg = []
 
-    for idx, superpixel in enumerate(all_gabor):
-        average = np.mean(superpixel)
-        avg_gabor.append(average)
-        print(f'Gabor for Superpixel #{idx} has average:{average}')
+    for group in gabor_groups:
+        image = []
+        for response in group:
+            average = np.mean(response)
+            image.append(average)
+        images_with_gabor_avg.append(image)
 
     # Create dataset for SVM input and labels
     X = []
     y = []
 
-    for i in range(len(ab_superpixels)):
-        surf = avg_descriptors[i]
-        gabor = avg_gabor[i]
+    for i in range(len(slic_groups)):
+        for j in range(len(images_with_surf_avg[i])):
+            surf_feature = images_with_surf_avg[i][j]
+            gabor_feature = images_with_gabor_avg[i][j]
+            color = images_with_centroid_ab[i][j]
 
-        color = superpixel_colors[i]
+            X.append([surf_feature, gabor_feature])
+            y.append(color_lookup[color[0], color[1]])
 
-        if np.min(color) == 0:
-            continue
-
-        color_idx = color_lookup[color[0], color[1]]
-
-        X.append([surf, gabor])
-        y.append(color_idx)
-
-        print(f'Training sample #{i} with X:{[surf, gabor]}, y:{color_idx}')
+    X = preprocessing.scale(X)
 
     return X, y, ab_centroids
 
@@ -330,7 +324,7 @@ def train_svm(X, y):
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
 
-    classifier = svm.SVC(kernel='linear')
+    classifier = svm.SVC()
     classifier.fit(X_train, y_train)
 
     y_pred = classifier.predict(X_test)
@@ -422,26 +416,26 @@ def test_compute_gabor(test_superpixels):
 
 
 def test_make_dataset(test_surf_descriptors, test_gabor_groups):
-    avg_descriptors = []
+    surf_avg = []
 
-    for idx, descriptors in enumerate(test_surf_descriptors):
-        average = np.mean(descriptors)
-        avg_descriptors.append(average)
-        print(f'SURF for test Superpixel #{idx} has average:{average}')
+    for idx, descriptor in enumerate(test_surf_descriptors):
+        average = np.mean(descriptor) if descriptor is not None else 0
+        surf_avg.append(average)
 
-    avg_filters = []
+    gabor_avg = []
 
-    for idx, superpixel in enumerate(test_gabor_groups):
-        average = np.mean(superpixel)
-        avg_filters.append(average)
-        print(f'Gabor for test Superpixel #{idx} has average:{average}')
+    for idx, response in enumerate(test_gabor_groups):
+        average = np.mean(response)
+        gabor_avg.append(average)
 
     test_X = []
 
-    for i in range(len(avg_descriptors)):
-        surf = avg_descriptors[i]
-        gabor = avg_filters[i]
-        test_X.append([surf, gabor])
+    for i in range(len(surf_avg)):
+        surf_feature = surf_avg[i]
+        gabor_feature = surf_avg[i]
+        test_X.append([surf_feature, gabor_feature])
+
+    test_X = preprocessing.scale(test_X)
 
     return test_X
 
