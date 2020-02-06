@@ -287,7 +287,8 @@ def make_dataset(slic_groups, slic_centroids, surf_descriptors, gabor_groups, ce
     for group in surf_descriptors:
         image = []
         for descriptor in group:
-            average = np.mean(descriptor) if descriptor is not None else 0
+            nonzero = descriptor[descriptor != 0]
+            average = np.mean(nonzero)
             image.append(average)
         images_with_surf_avg.append(image)
 
@@ -297,7 +298,8 @@ def make_dataset(slic_groups, slic_centroids, surf_descriptors, gabor_groups, ce
     for group in gabor_groups:
         image = []
         for response in group:
-            average = np.mean(response)
+            nonzero = response[response != 0]
+            average = np.mean(nonzero)
             image.append(average)
         images_with_gabor_avg.append(image)
 
@@ -419,20 +421,22 @@ def test_make_dataset(test_surf_descriptors, test_gabor_groups):
     surf_avg = []
 
     for idx, descriptor in enumerate(test_surf_descriptors):
-        average = np.mean(descriptor) if descriptor is not None else 0
+        nonzero = descriptor[descriptor != 0]
+        average = np.mean(nonzero)
         surf_avg.append(average)
 
     gabor_avg = []
 
     for idx, response in enumerate(test_gabor_groups):
-        average = np.mean(response)
+        nonzero = response[response != 0]
+        average = np.mean(nonzero)
         gabor_avg.append(average)
 
     test_X = []
 
     for i in range(len(surf_avg)):
         surf_feature = surf_avg[i]
-        gabor_feature = surf_avg[i]
+        gabor_feature = gabor_avg[i]
         test_X.append([surf_feature, gabor_feature])
 
     test_X = preprocessing.scale(test_X)

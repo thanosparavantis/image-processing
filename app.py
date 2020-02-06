@@ -1,6 +1,6 @@
 import project_functions as funcs
 
-lab_dataset = funcs.get_lab_dataset(path='./dataset')
+lab_dataset = funcs.get_lab_dataset(path='./dataset_2')
 quantized_dataset, centroids = funcs.quantize_images(lab_dataset)
 slic_groups, slic_centroids = funcs.slic_images(quantized_dataset)
 surf_descriptors = funcs.compute_surf(slic_groups)
