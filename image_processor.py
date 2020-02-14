@@ -11,12 +11,26 @@ from sklearn.cluster import MiniBatchKMeans
 
 class ImageProcessor:
     TempFolderPath = './temp'
-    SourceFilePath = './image_1.jpg'
-    TargetFilePath = './image_2.jpg'
+    SourceFilePath = './image_2.jpg'
+    TargetFilePath = './image_3.jpg'
+    SourceSuperpixelFilePath = f'{TempFolderPath}/source_superpixels'
+    TargetSuperpixelFilePath = f'{TempFolderPath}/target_superpixels'
+    SourceSurfFilePath = f'{TempFolderPath}/source_surf'
+    TargetSurfFilePath = f'{TempFolderPath}/target_surf'
+    GaborKernelsFilePath = f'{TempFolderPath}/gabor_kernels'
+    SourceGaborFilePath = f'{TempFolderPath}/source_gabor'
+    TargetGaborFilePath = f'{TempFolderPath}/target_gabor'
 
     def __init__(self):
         shutil.rmtree(self.TempFolderPath)
         os.mkdir(self.TempFolderPath)
+        os.mkdir(self.SourceSuperpixelFilePath)
+        os.mkdir(self.TargetSuperpixelFilePath)
+        os.mkdir(self.SourceSurfFilePath)
+        os.mkdir(self.TargetSurfFilePath)
+        os.mkdir(self.GaborKernelsFilePath)
+        os.mkdir(self.SourceGaborFilePath)
+        os.mkdir(self.TargetGaborFilePath)
 
         self.colors_lab = []
         self.k_means = None
@@ -51,7 +65,7 @@ class ImageProcessor:
         target_img = cv2.imread(self.TargetFilePath)
         target_img = cv2.cvtColor(target_img, cv2.COLOR_BGR2GRAY)
 
-        cv2.imwrite(os.path.join(self.TempFolderPath, 'target_L.jpg'), target_img)
+        cv2.imwrite(os.path.join(self.TempFolderPath, 'target_greyscale.jpg'), target_img)
 
         print('Done.')
 
@@ -64,7 +78,7 @@ class ImageProcessor:
         height, width, depth = source_img.shape
         reshaped_img = source_img.reshape((height * width, depth))
 
-        self.k_means = MiniBatchKMeans(n_clusters=32)
+        self.k_means = MiniBatchKMeans(n_clusters=8)
         self.k_means.fit(reshaped_img)
 
         self.colors_lab = self.k_means.cluster_centers_.astype('uint8')
@@ -72,14 +86,18 @@ class ImageProcessor:
         pixel_labels = self.k_means.predict(reshaped_img)
         self.source_q = self.colors_lab[pixel_labels]
         self.source_q = self.source_q.reshape((height, width, depth))
-        cv2.imwrite(os.path.join(self.TempFolderPath, 'source_quantized.jpg'), self.source_q)
+
+        rgb_img = cv2.cvtColor(self.source_q, cv2.COLOR_LAB2BGR)
+        cv2.imwrite(os.path.join(self.TempFolderPath, 'source_quantized.jpg'), rgb_img)
 
         print('Done.')
 
     def slic_source(self):
         print('Applying SLIC for source image...')
 
-        groups = slic(image=img_as_float(self.source_q), n_segments=50, compactness=10, sigma=1)
+        source_img = cv2.imread(self.SourceFilePath)
+
+        groups = slic(image=img_as_float(source_img), n_segments=100, compactness=10, sigma=1)
         group_ids = np.unique(groups)
 
         self.source_centroids = np.array([np.mean(np.nonzero(groups == i), axis=1) for i in group_ids])
@@ -89,9 +107,10 @@ class ImageProcessor:
             mask[groups == group] = 255
             superpixel = cv2.bitwise_and(self.source_q, self.source_q, mask=mask)
             self.source_superpixels.append(superpixel)
-            # cv2.imwrite(os.path.join(self.TempFolderPath, f'source_superpixel_{group}.jpg'), superpixel)
+            cv2.imwrite(os.path.join(self.SourceSuperpixelFilePath, f'source_superpixel_{group}.jpg'), superpixel)
 
-        slic_img = img_as_ubyte(mark_boundaries(self.source_q, groups))
+        rgb_img = cv2.cvtColor(self.source_q, cv2.COLOR_LAB2BGR)
+        slic_img = img_as_ubyte(mark_boundaries(rgb_img, groups))
         cv2.imwrite(os.path.join(self.TempFolderPath, f'source_slic.jpg'), slic_img)
 
         print('Done.')
@@ -101,7 +120,7 @@ class ImageProcessor:
 
         target_img = cv2.imread(self.TargetFilePath)
         target_img = cv2.cvtColor(target_img, cv2.COLOR_BGR2GRAY)
-        groups = slic(image=img_as_float(target_img), n_segments=50, compactness=0.1, sigma=1)
+        groups = slic(image=img_as_float(target_img), n_segments=100, compactness=0.1, sigma=1)
         group_ids = np.unique(groups)
 
         for group in group_ids:
@@ -109,7 +128,7 @@ class ImageProcessor:
             mask[groups == group] = 255
             superpixel = cv2.bitwise_and(target_img, target_img, mask=mask)
             self.target_superpixels.append(superpixel)
-            # cv2.imwrite(os.path.join(self.TempFolderPath, f'target_superpixel_{group}.jpg'), superpixel)
+            cv2.imwrite(os.path.join(self.TargetSuperpixelFilePath, f'target_superpixel_{group}.jpg'), superpixel)
 
         slic_img = img_as_ubyte(mark_boundaries(target_img, groups))
         cv2.imwrite(os.path.join(self.TempFolderPath, f'target_slic.jpg'), slic_img)
@@ -125,9 +144,8 @@ class ImageProcessor:
         for idx, superpixel in enumerate(self.source_superpixels):
             keypoints, descriptors = surf.detectAndCompute(superpixel, None)
             self.source_surf.append(descriptors)
-
             surf_img = cv2.drawKeypoints(superpixel, keypoints, None, (255, 0, 0), 4)
-            # cv2.imwrite(os.path.join(self.TempFolderPath, f'source_surf_{idx}.jpg'), surf_img)
+            cv2.imwrite(os.path.join(self.SourceSurfFilePath, f'source_surf_{idx}.jpg'), surf_img)
 
         print('Done.')
 
@@ -140,9 +158,8 @@ class ImageProcessor:
         for idx, superpixel in enumerate(self.target_superpixels):
             keypoints, descriptors = surf.detectAndCompute(superpixel, None)
             self.target_surf.append(descriptors)
-
             surf_img = cv2.drawKeypoints(superpixel, keypoints, None, (255, 0, 0), 4)
-            # cv2.imwrite(os.path.join(self.TempFolderPath, f'target_surf_{idx}.jpg'), surf_img)
+            cv2.imwrite(os.path.join(self.TargetSurfFilePath, f'target_surf_{idx}.jpg'), surf_img)
 
         print('Done.')
 
@@ -154,7 +171,7 @@ class ImageProcessor:
 
             h, w = kernel.shape[:2]
             kernel_img = cv2.resize(kernel, (10 * w, 10 * h), interpolation=cv2.INTER_CUBIC)
-            # cv2.imwrite(os.path.join(self.TempFolderPath, f'gabor_kernel_{idx}.jpg'), kernel_img)
+            cv2.imwrite(os.path.join(self.GaborKernelsFilePath, f'gabor_kernel_{idx}.jpg'), kernel_img)
 
             kernel /= 1.5 * kernel.sum()
             self.gabor_kernels.append(kernel)
@@ -178,7 +195,7 @@ class ImageProcessor:
         for idx, superpixel in enumerate(self.source_superpixels):
             gabor_img, responses = self.apply_kernels(superpixel)
             self.source_gabor.append(responses)
-            # cv2.imwrite(os.path.join(self.TempFolderPath, f'source_gabor_{idx}.jpg'), gabor_img)
+            cv2.imwrite(os.path.join(self.SourceGaborFilePath, f'source_gabor_{idx}.jpg'), gabor_img)
 
         print('Done.')
 
@@ -188,7 +205,7 @@ class ImageProcessor:
         for idx, superpixel in enumerate(self.target_superpixels):
             gabor_img, responses = self.apply_kernels(superpixel)
             self.target_gabor.append(responses)
-            # cv2.imwrite(os.path.join(self.TempFolderPath, f'target_gabor_{idx}.jpg'), gabor_img)
+            cv2.imwrite(os.path.join(self.TargetGaborFilePath, f'target_gabor_{idx}.jpg'), gabor_img)
 
         print('Done.')
 
@@ -241,6 +258,7 @@ class ImageProcessor:
 
         self.source_x = preprocessing.scale(self.source_x)
         print(self.source_y)
+
         print('Done.')
 
     def make_target_dataset(self):
@@ -297,18 +315,16 @@ class ImageProcessor:
         colored_img = np.zeros((target_img.shape[0], target_img.shape[1], 3), dtype='uint8')
 
         for idx, superpixel in enumerate(self.target_superpixels):
-            for i in range(superpixel.shape[0]):
-                for j in range(superpixel.shape[1]):
-                    if superpixel[i, j] > 0:
-                        L = target_img[i, j]
-                        a = color_labels[idx, 0]
-                        b = color_labels[idx, 1]
+            x_s, y_s = np.nonzero(superpixel)
 
-                        # print(f'Coloring pixel ({i}, {j}) with LAB color (L:{L}, a:{a}, b:{b})')
+            for i, j in zip(x_s, y_s):
+                L = target_img[i, j]
+                a = color_labels[idx, 0]
+                b = color_labels[idx, 1]
 
-                        colored_img[i, j, 0] = L
-                        colored_img[i, j, 1] = a
-                        colored_img[i, j, 2] = b
+                colored_img[i, j, 0] = L
+                colored_img[i, j, 1] = a
+                colored_img[i, j, 2] = b
 
         colored_img = cv2.cvtColor(colored_img, cv2.COLOR_LAB2BGR)
         cv2.imwrite(os.path.join(self.TempFolderPath, f'target_colored.jpg'), colored_img)
