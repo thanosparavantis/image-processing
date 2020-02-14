@@ -1,20 +1,11 @@
-import project_functions as funcs
+# ------------------------------------------ #
+# Image Processing                           #
+# ------------------------------------------ #
+# P16036 | Ioannidis Panagiotis              #
+# P16097 | Nikas Dionisios                   #
+# P16112 | Paravantis Athanasios             #
+# ------------------------------------------ #
 
-# lab_dataset = funcs.get_lab_dataset(path='./dataset_2')
-# quantized_dataset, centroids = funcs.quantize_images(lab_dataset)
-# slic_groups, slic_centroids = funcs.slic_images(quantized_dataset)
-# surf_descriptors = funcs.compute_surf(slic_groups)
-# gabor_groups = funcs.compute_gabor(slic_groups)
-# X, y, ab_centroids = funcs.make_dataset(slic_groups, slic_centroids, surf_descriptors, gabor_groups, centroids)
-# classifier = funcs.train_svm(X, y)
-#
-# test_image = funcs.test_get_image(path='./test.jpg')
-# test_superpixels, test_slic_centroids = funcs.test_slic_image(test_image)
-# test_surf_descriptors = funcs.test_compute_surf(test_superpixels)
-# test_gabor_groups = funcs.test_compute_gabor(test_superpixels)
-# test_X = funcs.test_make_dataset(test_surf_descriptors, test_gabor_groups)
-#
-# funcs.test_color_image(test_image, ab_centroids, classifier, test_X, test_superpixels)
 from image_processor import ImageProcessor
 
 processor = ImageProcessor()
