@@ -14,10 +14,10 @@ class ImageProcessor:
     TempFolderPath = './temp'
 
     # The source image to be used for training
-    SourceFilePath = './image_2.jpg'
+    SourceFilePath = './source.jpg'
 
     # The target image to be used for colorization
-    TargetFilePath = './image_3.jpg'
+    TargetFilePath = './target.jpg'
 
     # The folder where all source superpixels will be stored
     SourceSuperpixelFilePath = f'{TempFolderPath}/source_superpixels'
