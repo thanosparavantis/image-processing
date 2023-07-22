@@ -5,4 +5,4 @@ A Python project that was developed as a university assignment for the subject o
 Ioannidis Panagiotis, Paravantis Athanasios, Nikas Dionisios
 
 **Browse through related projects on thanosparavantis.com:**  
-https://www.thanosparavantis.com/projects/image-processing
+https://thanos.dev/projects/image-processing
